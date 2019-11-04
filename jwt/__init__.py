@@ -10,10 +10,10 @@ https://self-issued.info/docs/draft-jones-json-web-token-01.html
 
 
 __title__ = "pyjwt"
-__version__ = "1.7.1"
-__author__ = "José Padilla"
+__version__ = "1.8.0"
+__author__ = "Privex Inc. (Originally by José Padilla)"
 __license__ = "MIT"
-__copyright__ = "Copyright 2015-2018 José Padilla"
+__copyright__ = "Copyright 2019 Privex Inc. / Copyright 2015-2018 José Padilla"
 
 
 from .api_jws import PyJWS

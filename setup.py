@@ -42,14 +42,14 @@ EXTRAS_REQUIRE["dev"] = (
 )
 
 setup(
-    name="PyJWT",
+    name="privex_pyjwt",
     version=version,
-    author="Jose Padilla",
-    author_email="hello@jpadilla.com",
-    description="JSON Web Token implementation in Python",
+    url="https://github.com/Privex/pyjwt",
+    author='Chris (Someguy123) @ Privex',
+    author_email='chris@privex.io',
+    description="JSON Web Token implementation in Python (fork of PyJWT)",
     license="MIT",
     keywords="jwt json web token security signing",
-    url="https://github.com/jpadilla/pyjwt",
     packages=find_packages(
         exclude=["*.tests", "*.tests.*", "tests.*", "tests"]
     ),
