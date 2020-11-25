@@ -1,11 +1,10 @@
 import json
-import warnings
 from calendar import timegm
+from collections.abc import Iterable, Mapping
 from datetime import datetime, timedelta
 
 from .algorithms import Algorithm, get_default_algorithms  # NOQA
 from .api_jws import PyJWS
-from .compat import Iterable, Mapping, string_types
 from .exceptions import (
     DecodeError,
     ExpiredSignatureError,
@@ -29,7 +28,7 @@ class PyJWT(PyJWS):
 
     @staticmethod
     def _get_default_options():
-        # type: () -> Dict[str, bool]
+        # type: () -> Dict[str, Union[bool, List[str]]]
         return {
             "verify_signature": True,
             "verify_exp": True,
@@ -37,9 +36,7 @@ class PyJWT(PyJWS):
             "verify_iat": True,
             "verify_aud": True,
             "verify_iss": True,
-            "require_exp": False,
-            "require_iat": False,
-            "require_nbf": False,
+            "require": [],
         }
 
     def encode(
@@ -69,7 +66,7 @@ class PyJWT(PyJWS):
             payload, separators=(",", ":"), cls=json_encoder
         ).encode("utf-8")
 
-        return super(PyJWT, self).encode(
+        return super().encode(
             json_payload, key, algorithm, headers, json_encoder
         )
 
@@ -77,61 +74,60 @@ class PyJWT(PyJWS):
         self,
         jwt,  # type: str
         key="",  # type: str
-        verify=True,  # type: bool
         algorithms=None,  # type: List[str]
         options=None,  # type: Dict
+        complete=False,  # type: bool
         **kwargs
-    ):
-        # type: (...) -> Dict[str, Any]
-
-        if verify and not algorithms:
-            warnings.warn(
-                "It is strongly recommended that you pass in a "
-                + 'value for the "algorithms" argument when calling decode(). '
-                + "This argument will be mandatory in a future version.",
-                DeprecationWarning,
-            )
+    ):  # type: (...) -> Dict[str, Any]
 
         payload, _, _, _ = self._load(jwt)
 
         if options is None:
-            options = {"verify_signature": verify}
+            options = {"verify_signature": True}
         else:
-            options.setdefault("verify_signature", verify)
+            options.setdefault("verify_signature", True)
 
-        decoded = super(PyJWT, self).decode(
-            jwt, key=key, algorithms=algorithms, options=options, **kwargs
+        if options["verify_signature"] and not algorithms:
+            raise DecodeError(
+                'It is required that you pass in a value for the "algorithms" argument when calling decode().'
+            )
+
+        decoded = super().decode(
+            jwt,
+            key=key,
+            algorithms=algorithms,
+            options=options,
+            complete=complete,
+            **kwargs
         )
 
         try:
-            payload = json.loads(decoded.decode("utf-8"))
+            if complete:
+                payload = json.loads(decoded["payload"].decode("utf-8"))
+            else:
+                payload = json.loads(decoded.decode("utf-8"))
         except ValueError as e:
             raise DecodeError("Invalid payload string: %s" % e)
         if not isinstance(payload, dict):
             raise DecodeError("Invalid payload string: must be a json object")
 
-        if verify:
+        if options["verify_signature"]:
             merged_options = merge_dict(self.options, options)
             self._validate_claims(payload, merged_options, **kwargs)
+
+        if complete:
+            decoded["payload"] = payload
+            return decoded
 
         return payload
 
     def _validate_claims(
         self, payload, options, audience=None, issuer=None, leeway=0, **kwargs
     ):
-
-        if "verify_expiration" in kwargs:
-            options["verify_exp"] = kwargs.get("verify_expiration", True)
-            warnings.warn(
-                "The verify_expiration parameter is deprecated. "
-                "Please use verify_exp in options instead.",
-                DeprecationWarning,
-            )
-
         if isinstance(leeway, timedelta):
             leeway = leeway.total_seconds()
 
-        if not isinstance(audience, (string_types, type(None), Iterable)):
+        if not isinstance(audience, (bytes, str, type(None), Iterable)):
             raise TypeError("audience must be a string, iterable, or None")
 
         self._validate_required_claims(payload, options)
@@ -154,14 +150,9 @@ class PyJWT(PyJWS):
             self._validate_aud(payload, audience)
 
     def _validate_required_claims(self, payload, options):
-        if options.get("require_exp") and payload.get("exp") is None:
-            raise MissingRequiredClaimError("exp")
-
-        if options.get("require_iat") and payload.get("iat") is None:
-            raise MissingRequiredClaimError("iat")
-
-        if options.get("require_nbf") and payload.get("nbf") is None:
-            raise MissingRequiredClaimError("nbf")
+        for claim in options.get("require", []):
+            if payload.get(claim) is None:
+                raise MissingRequiredClaimError(claim)
 
     def _validate_iat(self, payload, now, leeway):
         try:
@@ -207,14 +198,14 @@ class PyJWT(PyJWS):
 
         audience_claims = payload["aud"]
 
-        if isinstance(audience_claims, string_types):
+        if isinstance(audience_claims, (bytes, str)):
             audience_claims = [audience_claims]
         if not isinstance(audience_claims, list):
             raise InvalidAudienceError("Invalid claim format in token")
-        if any(not isinstance(c, string_types) for c in audience_claims):
+        if any(not isinstance(c, (bytes, str)) for c in audience_claims):
             raise InvalidAudienceError("Invalid claim format in token")
 
-        if isinstance(audience, string_types):
+        if isinstance(audience, (bytes, str)):
             audience = [audience]
 
         if not any(aud in audience_claims for aud in audience):

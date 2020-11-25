@@ -1,10 +1,9 @@
 import binascii
 import json
-import warnings
+from collections.abc import Mapping
 
 from .algorithms import requires_cryptography  # NOQA
 from .algorithms import Algorithm, get_default_algorithms, has_crypto
-from .compat import Mapping, binary_type, string_types, text_type
 from .exceptions import (
     DecodeError,
     InvalidAlgorithmError,
@@ -20,7 +19,7 @@ except ImportError:
     pass
 
 
-class PyJWS(object):
+class PyJWS:
     header_typ = "JWT"
 
     def __init__(self, algorithms=None, options=None):
@@ -126,7 +125,9 @@ class PyJWS(object):
 
         segments.append(base64url_encode(signature))
 
-        return b".".join(segments)
+        encoded_string = b".".join(segments)
+
+        return encoded_string.decode("utf-8")
 
     def decode(
         self,
@@ -135,6 +136,7 @@ class PyJWS(object):
         verify=True,  # type: bool
         algorithms=None,  # type: List[str]
         options=None,  # type: Dict
+        complete=False,  # type: bool
         **kwargs
     ):
 
@@ -142,26 +144,23 @@ class PyJWS(object):
         verify_signature = merged_options["verify_signature"]
 
         if verify_signature and not algorithms:
-            warnings.warn(
-                "It is strongly recommended that you pass in a "
-                + 'value for the "algorithms" argument when calling decode(). '
-                + "This argument will be mandatory in a future version.",
-                DeprecationWarning,
+            raise DecodeError(
+                'It is required that you pass in a value for the "algorithms" argument when calling decode().'
             )
 
         payload, signing_input, header, signature = self._load(jwt)
 
-        if not verify:
-            warnings.warn(
-                "The verify parameter is deprecated. "
-                "Please use verify_signature in options instead.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-        elif verify_signature:
+        if verify_signature:
             self._verify_signature(
                 payload, signing_input, header, signature, key, algorithms
             )
+
+        if complete:
+            return {
+                "payload": payload,
+                "header": header,
+                "signature": signature,
+            }
 
         return payload
 
@@ -177,42 +176,42 @@ class PyJWS(object):
         return headers
 
     def _load(self, jwt):
-        if isinstance(jwt, text_type):
+        if isinstance(jwt, str):
             jwt = jwt.encode("utf-8")
 
-        if not issubclass(type(jwt), binary_type):
+        if not isinstance(jwt, bytes):
             raise DecodeError(
-                "Invalid token type. Token must be a {0}".format(binary_type)
+                "Invalid token type. Token must be a {}".format(bytes)
             )
 
         try:
             signing_input, crypto_segment = jwt.rsplit(b".", 1)
             header_segment, payload_segment = signing_input.split(b".", 1)
-        except ValueError:
-            raise DecodeError("Not enough segments")
+        except ValueError as err:
+            raise DecodeError("Not enough segments") from err
 
         try:
             header_data = base64url_decode(header_segment)
-        except (TypeError, binascii.Error):
-            raise DecodeError("Invalid header padding")
+        except (TypeError, binascii.Error) as err:
+            raise DecodeError("Invalid header padding") from err
 
         try:
             header = json.loads(header_data.decode("utf-8"))
         except ValueError as e:
-            raise DecodeError("Invalid header string: %s" % e)
+            raise DecodeError("Invalid header string: %s" % e) from e
 
         if not isinstance(header, Mapping):
             raise DecodeError("Invalid header string: must be a json object")
 
         try:
             payload = base64url_decode(payload_segment)
-        except (TypeError, binascii.Error):
-            raise DecodeError("Invalid payload padding")
+        except (TypeError, binascii.Error) as err:
+            raise DecodeError("Invalid payload padding") from err
 
         try:
             signature = base64url_decode(crypto_segment)
-        except (TypeError, binascii.Error):
-            raise DecodeError("Invalid crypto padding")
+        except (TypeError, binascii.Error) as err:
+            raise DecodeError("Invalid crypto padding") from err
 
         return (payload, signing_input, header, signature)
 
@@ -248,7 +247,7 @@ class PyJWS(object):
             self._validate_kid(headers["kid"])
 
     def _validate_kid(self, kid):
-        if not isinstance(kid, string_types):
+        if not isinstance(kid, (bytes, str)):
             raise InvalidTokenError("Key ID header parameter must be a string")
 
 

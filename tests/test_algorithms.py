@@ -11,8 +11,13 @@ from .keys import load_hmac_key
 from .utils import key_path
 
 try:
-    from jwt.algorithms import RSAAlgorithm, ECAlgorithm, RSAPSSAlgorithm
-    from .keys import load_rsa_pub_key, load_ec_pub_key
+    from jwt.algorithms import (
+        RSAAlgorithm,
+        ECAlgorithm,
+        RSAPSSAlgorithm,
+        Ed25519Algorithm,
+    )
+    from .keys import load_rsa_pub_key, load_ec_pub_key_p_521
 
     has_crypto = True
 except ImportError:
@@ -142,7 +147,7 @@ class TestAlgorithms:
     def test_rsa_should_accept_pem_private_key_bytes(self):
         algo = RSAAlgorithm(RSAAlgorithm.SHA256)
 
-        with open(key_path("testkey_rsa"), "rb") as pem_key:
+        with open(key_path("testkey_rsa.priv"), "rb") as pem_key:
             algo.prepare_key(pem_key.read())
 
     @pytest.mark.skipif(
@@ -151,7 +156,7 @@ class TestAlgorithms:
     def test_rsa_should_accept_unicode_key(self):
         algo = RSAAlgorithm(RSAAlgorithm.SHA256)
 
-        with open(key_path("testkey_rsa"), "r") as rsa_key:
+        with open(key_path("testkey_rsa.priv"), "r") as rsa_key:
             algo.prepare_key(force_unicode(rsa_key.read()))
 
     @pytest.mark.skipif(
@@ -193,6 +198,94 @@ class TestAlgorithms:
     @pytest.mark.skipif(
         not has_crypto, reason="Not supported without cryptography library"
     )
+    def test_ec_jwk_public_and_private_keys_should_parse_and_verify(self):
+        tests = {
+            "P-256": ECAlgorithm.SHA256,
+            "P-384": ECAlgorithm.SHA384,
+            "P-521": ECAlgorithm.SHA512,
+        }
+        for (curve, hash) in tests.items():
+            algo = ECAlgorithm(hash)
+
+            with open(
+                key_path("jwk_ec_pub_{}.json".format(curve)), "r"
+            ) as keyfile:
+                pub_key = algo.from_jwk(keyfile.read())
+
+            with open(
+                key_path("jwk_ec_key_{}.json".format(curve)), "r"
+            ) as keyfile:
+                priv_key = algo.from_jwk(keyfile.read())
+
+            signature = algo.sign(force_bytes("Hello World!"), priv_key)
+            assert algo.verify(force_bytes("Hello World!"), pub_key, signature)
+
+    @pytest.mark.skipif(
+        not has_crypto, reason="Not supported without cryptography library"
+    )
+    def test_ec_jwk_fails_on_invalid_json(self):
+        algo = ECAlgorithm(ECAlgorithm.SHA512)
+
+        valid_points = {
+            "P-256": {
+                "x": "PTTjIY84aLtaZCxLTrG_d8I0G6YKCV7lg8M4xkKfwQ4=",
+                "y": "ank6KA34vv24HZLXlChVs85NEGlpg2sbqNmR_BcgyJU=",
+            },
+            "P-384": {
+                "x": "IDC-5s6FERlbC4Nc_4JhKW8sd51AhixtMdNUtPxhRFP323QY6cwWeIA3leyZhz-J",
+                "y": "eovmN9ocANS8IJxDAGSuC1FehTq5ZFLJU7XSPg36zHpv4H2byKGEcCBiwT4sFJsy",
+            },
+            "P-521": {
+                "x": "AHKZLLOsCOzz5cY97ewNUajB957y-C-U88c3v13nmGZx6sYl_oJXu9A5RkTKqjqvjyekWF-7ytDyRXYgCF5cj0Kt",
+                "y": "AdymlHvOiLxXkEhayXQnNCvDX4h9htZaCJN34kfmC6pV5OhQHiraVySsUdaQkAgDPrwQrJmbnX9cwlGfP-HqHZR1",
+            },
+        }
+
+        # Invalid JSON
+        with pytest.raises(InvalidKeyError):
+            algo.from_jwk("<this isn't json>")
+
+        # Bad key type
+        with pytest.raises(InvalidKeyError):
+            algo.from_jwk('{"kty": "RSA"}')
+
+        # Missing data
+        with pytest.raises(InvalidKeyError):
+            algo.from_jwk('{"kty": "EC"}')
+        with pytest.raises(InvalidKeyError):
+            algo.from_jwk('{"kty": "EC", "x": "1"}')
+        with pytest.raises(InvalidKeyError):
+            algo.from_jwk('{"kty": "EC", "y": "1"}')
+
+        # Missing curve
+        with pytest.raises(InvalidKeyError):
+            algo.from_jwk('{"kty": "EC", "x": "dGVzdA==", "y": "dGVzdA=="}')
+
+        # EC coordinates not equally long
+        with pytest.raises(InvalidKeyError):
+            algo.from_jwk(
+                '{"kty": "EC", "x": "dGVzdHRlc3Q=", "y": "dGVzdA=="}'
+            )
+
+        # EC coordinates length invalid
+        for curve in ("P-256", "P-384", "P-521"):
+            with pytest.raises(InvalidKeyError):
+                algo.from_jwk(
+                    '{{"kty": "EC", "crv": "{}", "x": "dGVzdA==", '
+                    '"y": "dGVzdA=="}}'.format(curve)
+                )
+
+        # EC private key length invalid
+        for (curve, point) in valid_points.items():
+            with pytest.raises(InvalidKeyError):
+                algo.from_jwk(
+                    '{{"kty": "EC", "crv": "{}", "x": "{}", "y": "{}", '
+                    '"d": "dGVzdA=="}}'.format(curve, point["x"], point["y"])
+                )
+
+    @pytest.mark.skipif(
+        not has_crypto, reason="Not supported without cryptography library"
+    )
     def test_rsa_jwk_public_and_private_keys_should_parse_and_verify(self):
         algo = RSAAlgorithm(RSAAlgorithm.SHA256)
 
@@ -211,7 +304,7 @@ class TestAlgorithms:
     def test_rsa_private_key_to_jwk_works_with_from_jwk(self):
         algo = RSAAlgorithm(RSAAlgorithm.SHA256)
 
-        with open(key_path("testkey_rsa"), "r") as rsa_key:
+        with open(key_path("testkey_rsa.priv"), "r") as rsa_key:
             orig_key = algo.prepare_key(force_unicode(rsa_key.read()))
 
         parsed_key = algo.from_jwk(algo.to_jwk(orig_key))
@@ -342,7 +435,7 @@ class TestAlgorithms:
     def test_rsa_to_jwk_returns_correct_values_for_private_key(self):
         algo = RSAAlgorithm(RSAAlgorithm.SHA256)
 
-        with open(key_path("testkey_rsa"), "r") as keyfile:
+        with open(key_path("testkey_rsa.priv"), "r") as keyfile:
             priv_key = algo.prepare_key(keyfile.read())
 
         key = algo.to_jwk(priv_key)
@@ -426,19 +519,10 @@ class TestAlgorithms:
     @pytest.mark.skipif(
         not has_crypto, reason="Not supported without cryptography library"
     )
-    def test_ec_should_accept_unicode_key(self):
-        algo = ECAlgorithm(ECAlgorithm.SHA256)
-
-        with open(key_path("testkey_ec"), "r") as ec_key:
-            algo.prepare_key(force_unicode(ec_key.read()))
-
-    @pytest.mark.skipif(
-        not has_crypto, reason="Not supported without cryptography library"
-    )
     def test_ec_should_accept_pem_private_key_bytes(self):
         algo = ECAlgorithm(ECAlgorithm.SHA256)
 
-        with open(key_path("testkey_ec"), "rb") as ec_key:
+        with open(key_path("testkey_ec.priv"), "rb") as ec_key:
             algo.prepare_key(ec_key.read())
 
     @pytest.mark.skipif(
@@ -499,7 +583,7 @@ class TestAlgorithms:
 
         message = force_bytes("Hello World!")
 
-        with open(key_path("testkey_rsa"), "r") as keyfile:
+        with open(key_path("testkey_rsa.priv"), "r") as keyfile:
             priv_key = algo.prepare_key(keyfile.read())
             sig = algo.sign(message, priv_key)
 
@@ -665,7 +749,85 @@ class TestAlgorithmsRFC7520:
         )
 
         algo = ECAlgorithm(ECAlgorithm.SHA512)
-        key = algo.prepare_key(load_ec_pub_key())
+        key = algo.prepare_key(load_ec_pub_key_p_521())
 
         result = algo.verify(signing_input, key, signature)
         assert result
+
+
+@pytest.mark.skipif(
+    not has_crypto, reason="Not supported without cryptography>=2.6 library"
+)
+class TestEd25519Algorithms:
+    hello_world_sig = "Qxa47mk/azzUgmY2StAOguAd4P7YBLpyCfU3JdbaiWnXM4o4WibXwmIHvNYgN3frtE2fcyd8OYEaOiD/KiwkCg=="
+    hello_world = force_bytes("Hello World!")
+
+    def test_ed25519_should_reject_non_string_key(self):
+        algo = Ed25519Algorithm()
+
+        with pytest.raises(TypeError):
+            algo.prepare_key(None)
+
+        with open(key_path("testkey_ed25519")) as keyfile:
+            algo.prepare_key(keyfile.read())
+
+        with open(key_path("testkey_ed25519.pub")) as keyfile:
+            algo.prepare_key(keyfile.read())
+
+    def test_ed25519_should_accept_unicode_key(self):
+        algo = Ed25519Algorithm()
+
+        with open(key_path("testkey_ed25519")) as ec_key:
+            algo.prepare_key(force_unicode(ec_key.read()))
+
+    def test_ed25519_sign_should_generate_correct_signature_value(self):
+        algo = Ed25519Algorithm()
+
+        jwt_message = self.hello_world
+
+        expected_sig = base64.b64decode(force_bytes(self.hello_world_sig))
+
+        with open(key_path("testkey_ed25519")) as keyfile:
+            jwt_key = algo.prepare_key(keyfile.read())
+
+        with open(key_path("testkey_ed25519.pub")) as keyfile:
+            jwt_pub_key = algo.prepare_key(keyfile.read())
+
+        algo.sign(jwt_message, jwt_key)
+        result = algo.verify(jwt_message, jwt_pub_key, expected_sig)
+        assert result
+
+    def test_ed25519_verify_should_return_false_if_signature_invalid(self):
+        algo = Ed25519Algorithm()
+
+        jwt_message = self.hello_world
+        jwt_sig = base64.b64decode(force_bytes(self.hello_world_sig))
+
+        jwt_sig += force_bytes("123")  # Signature is now invalid
+
+        with open(key_path("testkey_ed25519.pub")) as keyfile:
+            jwt_pub_key = algo.prepare_key(keyfile.read())
+
+        result = algo.verify(jwt_message, jwt_pub_key, jwt_sig)
+        assert not result
+
+    def test_ed25519_verify_should_return_true_if_signature_valid(self):
+        algo = Ed25519Algorithm()
+
+        jwt_message = self.hello_world
+        jwt_sig = base64.b64decode(force_bytes(self.hello_world_sig))
+
+        with open(key_path("testkey_ed25519.pub")) as keyfile:
+            jwt_pub_key = algo.prepare_key(keyfile.read())
+
+        result = algo.verify(jwt_message, jwt_pub_key, jwt_sig)
+        assert result
+
+    def test_ed25519_prepare_key_should_be_idempotent(self):
+        algo = Ed25519Algorithm()
+
+        with open(key_path("testkey_ed25519.pub")) as keyfile:
+            jwt_pub_key_first = algo.prepare_key(keyfile.read())
+            jwt_pub_key_second = algo.prepare_key(jwt_pub_key_first)
+
+        assert jwt_pub_key_first == jwt_pub_key_second

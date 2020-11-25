@@ -2,7 +2,7 @@ Usage Examples
 ==============
 
 Encoding & Decoding Tokens with HS256
----------------------------------
+-------------------------------------
 
 .. code-block:: python
 
@@ -14,7 +14,7 @@ Encoding & Decoding Tokens with HS256
     {'some': 'payload'}
 
 Encoding & Decoding Tokens with RS256 (RSA)
----------------------------------
+-------------------------------------------
 
 .. code-block:: python
 
@@ -23,11 +23,26 @@ Encoding & Decoding Tokens with RS256 (RSA)
     >>public_key = b'-----BEGIN PUBLIC KEY-----\nMHYwEAYHKoZIzj0CAQYFK4EEAC...'
     >>encoded = jwt.encode({'some': 'payload'}, private_key, algorithm='RS256')
     'eyJhbGciOiJIU...'
-    >>decoded = jwt.decode(encoded, public_key, algorithms='RS256')
+    >>decoded = jwt.decode(encoded, public_key, algorithms=['RS256'])
     {'some': 'payload'}
 
+If your private key needs a passphrase, you need to pass in a ``PrivateKey`` object from ``cryptography``.
+
+.. code-block:: python
+
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.backends import default_backend
+
+    pem_bytes = b'-----BEGIN PRIVATE KEY-----\nMIGEAgEAMBAGByqGSM49AgEGBS...'
+    passphrase = b'your password'
+
+    private_key = serialization.load_pem_private_key(
+        pem_bytes, password=passphrase, backend=default_backend())
+    encoded = jwt.encode({'some': 'payload'}, private_key, algorithm='RS256')
+
+
 Specifying Additional Headers
----------------------------------
+-----------------------------
 
 .. code-block:: python
 
@@ -36,7 +51,7 @@ Specifying Additional Headers
 
 
 Reading the Claimset without Validation
------------------------------------------
+---------------------------------------
 
 If you wish to read the claimset of a JWT without performing validation of the
 signature or any of the registered claim names, you can set the ``verify``
@@ -183,12 +198,23 @@ Audience Claim (aud)
     identify itself with a value in the audience claim.  If the principal
     processing the claim does not identify itself with a value in the
     "aud" claim when this claim is present, then the JWT MUST be
-    rejected.  In the general case, the "aud" value is an array of case-
-    sensitive strings, each containing a StringOrURI value.  In the
-    special case when the JWT has one audience, the "aud" value MAY be a
-    single case-sensitive string containing a StringOrURI value.  The
-    interpretation of audience values is generally application specific.
-    Use of this claim is OPTIONAL.
+    rejected.
+
+In the general case, the "aud" value is an array of case-
+sensitive strings, each containing a StringOrURI value.
+
+.. code-block:: python
+
+    payload = {
+        'some': 'payload',
+        'aud': ['urn:foo', 'urn:bar']
+    }
+
+    token = jwt.encode(payload, 'secret')
+    decoded = jwt.decode(token, 'secret', audience='urn:foo', algorithms=['HS256'])
+
+In the special case when the JWT has one audience, the "aud" value MAY be
+a single case-sensitive string containing a StringOrURI value.
 
 .. code-block:: python
 
@@ -199,6 +225,22 @@ Audience Claim (aud)
 
     token = jwt.encode(payload, 'secret')
     decoded = jwt.decode(token, 'secret', audience='urn:foo', algorithms=['HS256'])
+
+If multiple audiences are accepted, the ``audience`` parameter for
+``jwt.decode`` can also be an iterable
+
+.. code-block:: python
+
+    payload = {
+        'some': 'payload',
+        'aud': 'urn:foo'
+    }
+
+    token = jwt.encode(payload, 'secret')
+    decoded = jwt.decode(token, 'secret', audience=['urn:foo', 'urn:bar'], algorithms=['HS256'])
+
+The interpretation of audience values is generally application specific.
+Use of this claim is OPTIONAL.
 
 If the audience claim is incorrect, `jwt.InvalidAudienceError` will be raised.
 
@@ -215,3 +257,13 @@ Issued At Claim (iat)
 
     jwt.encode({'iat': 1371720939}, 'secret')
     jwt.encode({'iat': datetime.utcnow()}, 'secret')
+
+Requiring Presence of Claims
+----------------------------
+
+If you wish to require one or more claims to be present in the claimset, you can set the ``require`` paramenter to include these claims.
+
+.. code-block:: python
+
+    >>jwt.decode(encoded, options={'require': ['exp', 'iss', 'sub']})
+    {u'exp': 1371720939, u'iss': u'urn:foo', u'sub': u'25c37522-f148-4cbf-8ee6-c4a9718dd0af'}

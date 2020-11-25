@@ -1,10 +1,8 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
+#!/usr/bin/env python3
 import os
-import re
 import sys
-
-from setuptools import find_packages, setup
+import re
+from setuptools import setup, find_packages
 
 
 def get_version(package):
@@ -33,7 +31,7 @@ if sys.argv[-1] == "publish":
     sys.exit()
 
 EXTRAS_REQUIRE = {
-    "tests": ["pytest>=4.0.1,<5.0.0", "pytest-cov>=2.6.0,<3.0.0"],
+    "tests": ["pytest>=4.0.1,<5.0.0", "pytest-cov>=2.6.0,<3.0.0", "requests-mock"],
     "crypto": ["cryptography >= 1.4"],
 }
 

@@ -1,3 +1,20 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+
+[tool.coverage.run]
+parallel = true
+branch = true
+source = ["jwt"]
+
+[tool.coverage.paths]
+source = ["jwt", ".tox/*/site-packages"]
+
+[tool.coverage.report]
+show_missing = true
+
+
 [tool.black]
 line-length = 79
 
@@ -11,4 +28,4 @@ use_parentheses=true
 combine_as_imports=true
 
 known_first_party="jwt"
-known_third_party=["Crypto", "ecdsa", "pytest", "setuptools", "sphinx_rtd_theme"]
+known_third_party=["pytest", "requests_mock", "setuptools", "sphinx_rtd_theme"]

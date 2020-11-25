@@ -13,8 +13,8 @@ PyJWT
 .. image:: https://coveralls.io/repos/Privex/pyjwt/badge.svg?branch=master
    :target: https://coveralls.io/r/Privex/pyjwt?branch=master
 
-.. image:: https://readthedocs.org/projects/pyjwt/badge/?version=latest
-   :target: https://pyjwt.readthedocs.io
+.. image:: https://readthedocs.org/projects/pyjwt/badge/?version=stable
+   :target: https://pyjwt.readthedocs.io/en/stable/
 
 This is a fork of https://github.com/jpadilla/pyjwt by `Privex Inc.`_ - allowing us to be able to add our own updates which may
 not be accepted upstream in ``jpadilla/pyjwt``
@@ -80,7 +80,8 @@ Usage
 
     >>> import jwt
     >>> encoded = jwt.encode({'some': 'payload'}, 'secret', algorithm='HS256')
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzb21lIjoicGF5bG9hZCJ9.4twFt5NiznN84AWoo1d7KO1T_yoc0Z6XOpOVswacPZg'
+    >>> print(encoded)
+    eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzb21lIjoicGF5bG9hZCJ9.4twFt5NiznN84AWoo1d7KO1T_yoc0Z6XOpOVswacPZg
 
     >>> jwt.decode(encoded, 'secret', algorithms=['HS256'])
     {'some': 'payload'}
@@ -179,7 +180,7 @@ See more options executing ``pyjwt --help``.
 Documentation
 -------------
 
-View the full docs online at https://pyjwt.readthedocs.io/en/latest/
+View the full docs online at https://pyjwt.readthedocs.io/en/stable/
 
 
 Tests
@@ -189,4 +190,4 @@ You can run tests from the project root after cloning with:
 
 .. code-block:: sh
 
-    $ python setup.py test
+    $ tox

@@ -21,7 +21,6 @@ def load_hmac_key():
 
 try:
     from cryptography.hazmat.primitives.asymmetric import ec
-    from cryptography.hazmat.backends import default_backend
     from jwt.algorithms import RSAAlgorithm
 
     has_crypto = True
@@ -44,15 +43,17 @@ if has_crypto:
 
         return ec.EllipticCurvePrivateNumbers(
             private_value=decode_value(keyobj["d"]),
-            public_numbers=load_ec_pub_key().public_numbers(),
+            public_numbers=load_ec_pub_key_p_521().public_numbers(),
         )
 
-    def load_ec_pub_key():
-        with open(os.path.join(BASE_PATH, "jwk_ec_pub.json"), "r") as infile:
+    def load_ec_pub_key_p_521():
+        with open(
+            os.path.join(BASE_PATH, "jwk_ec_pub_P-521.json"), "r"
+        ) as infile:
             keyobj = json.load(infile)
 
         return ec.EllipticCurvePublicNumbers(
             x=decode_value(keyobj["x"]),
             y=decode_value(keyobj["y"]),
             curve=ec.SECP521R1(),
-        ).public_key(default_backend())
+        ).public_key()
