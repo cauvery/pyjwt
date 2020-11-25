@@ -3,6 +3,8 @@ import hmac
 import json
 import warnings
 
+from cryptography.hazmat.backends import default_backend
+
 from .exceptions import InvalidKeyError
 from .utils import (
     base64url_decode,
@@ -555,11 +557,11 @@ if has_crypto:  # noqa: C901
                 str_key = key.decode("utf-8")
 
                 if "-----BEGIN PUBLIC" in str_key:
-                    return load_pem_public_key(key)
+                    return load_pem_public_key(key, default_backend())
                 if "-----BEGIN PRIVATE" in str_key:
-                    return load_pem_private_key(key, password=None)
+                    return load_pem_private_key(key, password=None, backend=default_backend())
                 if str_key[0:4] == "ssh-":
-                    return load_ssh_public_key(key)
+                    return load_ssh_public_key(key, default_backend())
 
             raise TypeError("Expecting a PEM-formatted or OpenSSH key.")
 
