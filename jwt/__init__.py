@@ -9,9 +9,16 @@ https://self-issued.info/docs/draft-jones-json-web-token-01.html
 """
 
 
-__title__ = "pyjwt"
-__version__ = "1.8.0"
+__title__ = "PyJWT"
+
+__description__ = "JSON Web Token implementation in Python"
+__url__ = "https://pyjwt.readthedocs.io"
+__uri__ = __url__
+__doc__ = __description__ + " <" + __uri__ + ">"
+
+__version__ = "2.0.0"
 __author__ = "Privex Inc. (Originally by José Padilla)"
+__email__ = "packaging@privex.io"
 __license__ = "MIT"
 __copyright__ = "Copyright 2019 Privex Inc. / Copyright 2015-2018 José Padilla"
 
@@ -42,20 +49,6 @@ from .exceptions import (
     PyJWTError,
 )
 from .jwks_client import PyJWKClient
-
-__version__ = "2.0.0a1"
-
-__title__ = "PyJWT"
-__description__ = "JSON Web Token implementation in Python"
-__url__ = "https://pyjwt.readthedocs.io"
-__uri__ = __url__
-__doc__ = __description__ + " <" + __uri__ + ">"
-
-__author__ = "José Padilla"
-__email__ = "hello@jpadilla.com"
-
-__license__ = "MIT"
-__copyright__ = "Copyright 2015-2020 José Padilla"
 
 
 __all__ = [
