@@ -46,7 +46,7 @@ try:
         Ed25519PrivateKey,
         Ed25519PublicKey,
     )
-    from cryptography.utils import int_from_bytes
+    from cryptography.utils import int.from_bytes
 
     has_crypto = True
 except ImportError as e:
